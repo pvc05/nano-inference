@@ -1,10 +1,11 @@
 """Train the character-level CharMLP on the Harry Potter corpus, quantise it to
 int8 and export $readmemh hex weights for the FPGA.
 
-    python train.py                                  # tuned defaults -> model-weights/
-    python train.py --tune 10                        # Optuna search first, then train with the best settings
-    python train.py --hparams runs/best_hparams.json # reuse a previous search
-    python -m model.hw_check model-weights           # re-run the hardware-style check on an export
+    python train.py                          # runs/best_hparams.json if present, else built-in defaults
+    python train.py --tune 10                # Optuna search first, save the best, then train with it
+    python train.py --hparams other.json     # use a specific hyperparameter file
+    python train.py --no-hparams             # ignore runs/best_hparams.json, use the built-in defaults
+    python -m model.hw_check model-weights   # re-run the hardware-style check on an export
 """
 
 import argparse
@@ -21,6 +22,7 @@ from model.net import ACTIVATIONS, CharMLP, ModelConfig, save_checkpoint
 from model.trainer import TrainConfig, fit, resolve_device
 
 ROOT = Path(__file__).resolve().parent
+BEST_HPARAMS = ROOT / "runs" / "best_hparams.json"  # written by --tune, loaded by default
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,7 +34,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=1337)
 
     g = p.add_argument_group("training (override defaults and tuned values)")
-    g.add_argument("--hparams", help="JSON written by a previous --tune run")
+    src = g.add_mutually_exclusive_group()
+    src.add_argument("--hparams", help="hyperparameter JSON (default: runs/best_hparams.json if it exists)")
+    src.add_argument("--no-hparams", action="store_true", help="ignore saved hyperparameters, use built-in defaults")
     g.add_argument("--activation", choices=ACTIVATIONS)
     g.add_argument("--epochs", type=float)
     g.add_argument("--qat-epochs", type=float)
@@ -48,7 +52,7 @@ def parse_args() -> argparse.Namespace:
     g.add_argument("--tune-timeout", type=float, help="stop the search after this many seconds")
     g.add_argument("--study-name", default="charmlp")
     g.add_argument("--storage", default=f"sqlite:///{ROOT / 'runs' / 'optuna.db'}")
-    g.add_argument("--hparams-out", default=str(ROOT / "runs" / "best_hparams.json"), help="where to save the best trial")
+    g.add_argument("--hparams-out", default=str(BEST_HPARAMS), help="where to save the best trial")
 
     g = p.add_argument_group("quantisation / export")
     g.add_argument("--mult-bits", type=int, default=16, help="width of the requantisation multiplier")
@@ -59,7 +63,13 @@ def parse_args() -> argparse.Namespace:
 
 def configure(args, corpus) -> tuple[ModelConfig, TrainConfig, dict]:
     model_cfg, train_cfg = ModelConfig(), TrainConfig(seed=args.seed)
-    hp = tune.load_hparams(args.hparams) if args.hparams else {}
+    hp_path = None
+    if args.hparams:
+        hp_path = Path(args.hparams)
+    elif not args.no_hparams and BEST_HPARAMS.exists():
+        hp_path = BEST_HPARAMS
+    hp = tune.load_hparams(hp_path) if hp_path else {}
+    source = str(hp_path) if hp_path else "built-in defaults"
     if args.tune:
         study = tune.run_study(
             corpus,
@@ -75,7 +85,8 @@ def configure(args, corpus) -> tuple[ModelConfig, TrainConfig, dict]:
         )
         hp = tune.best_hparams(study)
         tune.save_hparams(hp, args.hparams_out)
-        print(f"[tune] best post-QAT val loss {study.best_value:.4f} with {hp}")
+        source = f"--tune (best post-QAT val loss {study.best_value:.4f}, saved to {args.hparams_out})"
+    print(f"hparams: {source}")
     model_cfg, train_cfg = tune.apply_hparams(hp, model_cfg, train_cfg)
 
     if args.activation:

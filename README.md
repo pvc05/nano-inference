@@ -16,15 +16,23 @@ Weights: 1,024 (embedding) + 8,192 + 128 (fc1) + 8,192 + 64 (fc2) = 17,600.
 
 ```bash
 pip install -r requirements.txt
-python train.py                                   # train with the tuned defaults, export to model-weights/
-python train.py --tune 10                         # Optuna TPE search first, then train with the best settings
-python train.py --hparams runs/best_hparams.json  # reuse a previous search
-python -m model.hw_check model-weights            # hardware-style check of an export (train.py also runs it)
+python train.py                          # train and export to model-weights/
+python train.py --tune 10                # Optuna TPE search first, save the best, then train with it
+python train.py --hparams other.json     # use a specific hyperparameter file
+python train.py --no-hparams             # ignore runs/best_hparams.json, use the built-in defaults
+python -m model.hw_check model-weights   # hardware-style check of an export (train.py also runs it)
 ```
 
-The defaults in `model/trainer.py` come from an Optuna search (best post-QAT
-val loss 1.560 on a 1-epoch trial budget: tanh, batch 256, lr 1.77e-2). The
-whole run takes a few minutes on CPU. `--device mps` works, but for a model
+Hyperparameters come from, in order of precedence: `--tune` (the search's
+best trial, also saved to `runs/best_hparams.json`), `--hparams FILE`,
+`runs/best_hparams.json` if it exists, then the built-in defaults in
+`model/trainer.py`. Individual flags such as `--lr` override all of them.
+`--tune` resumes the study in `runs/optuna.db`, so its best covers earlier
+trials too.
+
+The built-in defaults come from an Optuna search (best post-QAT val loss 1.560
+on a 1-epoch trial budget: tanh, batch 256, lr 1.77e-2). The whole run takes a
+few minutes on CPU. `--device mps` works, but for a model
 this small MPS is ~5x slower than CPU per step, so `auto` stays on CPU
 (or CUDA when present).
 
