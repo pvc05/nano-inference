@@ -3,6 +3,7 @@ int8 and export $readmemh hex weights for the FPGA.
 
     python train.py                          # runs/best_hparams.json if present, else built-in defaults
     python train.py --tune 10                # Optuna search first, save the best, then train with it
+    python train.py --tune 40 --tune-jobs 4  # same, running 4 trials at a time
     python train.py --hparams other.json     # use a specific hyperparameter file
     python train.py --no-hparams             # ignore runs/best_hparams.json, use the built-in defaults
     python -m model.hw_check model-weights   # re-run the hardware-style check on an export
@@ -47,6 +48,7 @@ def parse_args() -> argparse.Namespace:
 
     g = p.add_argument_group("hyperparameter search")
     g.add_argument("--tune", type=int, default=0, metavar="N_TRIALS", help="run N Optuna trials before training")
+    g.add_argument("--tune-jobs", type=int, default=1, metavar="N", help="trials to run in parallel (worker processes)")
     g.add_argument("--trial-epochs", type=float, default=1.0)
     g.add_argument("--trial-qat-epochs", type=float, default=0.25)
     g.add_argument("--tune-timeout", type=float, help="stop the search after this many seconds")
@@ -82,6 +84,7 @@ def configure(args, corpus) -> tuple[ModelConfig, TrainConfig, dict]:
             study_name=args.study_name,
             timeout=args.tune_timeout,
             seed=args.seed,
+            n_jobs=args.tune_jobs,
         )
         hp = tune.best_hparams(study)
         tune.save_hparams(hp, args.hparams_out)

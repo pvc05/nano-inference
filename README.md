@@ -18,6 +18,7 @@ Weights: 1,024 (embedding) + 8,192 + 128 (fc1) + 8,192 + 64 (fc2) = 17,600.
 pip install -r requirements.txt
 python train.py                          # train and export to model-weights/
 python train.py --tune 10                # Optuna TPE search first, save the best, then train with it
+python train.py --tune 40 --tune-jobs 4  # same, running 4 trials at a time in worker processes
 python train.py --hparams other.json     # use a specific hyperparameter file
 python train.py --no-hparams             # ignore runs/best_hparams.json, use the built-in defaults
 python -m model.hw_check model-weights   # hardware-style check of an export (train.py also runs it)
@@ -28,7 +29,14 @@ best trial, also saved to `runs/best_hparams.json`), `--hparams FILE`,
 `runs/best_hparams.json` if it exists, then the built-in defaults in
 `model/trainer.py`. Individual flags such as `--lr` override all of them.
 `--tune` resumes the study in `runs/optuna.db`, so its best covers earlier
-trials too.
+trials too. Use a new `--study-name` when you change `--trial-epochs` /
+`--trial-qat-epochs`, since losses from different trial budgets aren't
+comparable.
+
+One trial cannot keep a multi-core CPU busy with a model this small, so
+`--tune-jobs N` runs N trials at once in worker processes that share the study
+and split the CPU threads between them. The final training still runs once,
+in the main process.
 
 The built-in defaults come from an Optuna search (best post-QAT val loss 1.560
 on a 1-epoch trial budget: tanh, batch 256, lr 1.77e-2). The whole run takes a
