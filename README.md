@@ -4,7 +4,7 @@ A lightweight, low-latency inference engine running on a tiny Tang Nano 20k FPGA
 ## Part 1: the model
 
 A Bengio-style character-level language model (makemore MLP), trained on all
-seven Harry Potter books and quantised to int8 so all of it fits in BRAM.
+seven Harry Potter books and quantised to int8 so all of it fits in BRAM (data source credit: https://github.com/gastonstat/harry-potter-data).
 
 ```
 4 previous chars -> embedding 64x16 -> concat (64) -> fc1 64->128 -> tanh -> fc2 128->64 -> logits
@@ -39,10 +39,7 @@ and split the CPU threads between them. The final training still runs once,
 in the main process.
 
 The built-in defaults come from an Optuna search (best post-QAT val loss 1.560
-on a 1-epoch trial budget: tanh, batch 256, lr 1.77e-2). The whole run takes a
-few minutes on CPU. `--device mps` works, but for a model
-this small MPS is ~5x slower than CPU per step, so `auto` stays on CPU
-(or CUDA when present).
+on a 1-epoch trial budget: tanh, batch 256, lr 1.77e-2).
 
 The corpus is read from `harry-potter-data/csv-data-file/harry_potter_books.csv`
 (override with `--data`). Text is lower-cased and folded onto a fixed 64-symbol
@@ -61,7 +58,7 @@ accumulators fit the declared widths. It writes:
 - `checkpoints/charmlp_qat.pt`: QAT model (fake-quant when `quantized=True`)
 - `runs/`: Optuna study (`optuna.db`) and `best_hparams.json`
 
-### Integer pipeline (what the FPGA computes)
+<!-- ### Integer pipeline (what the FPGA computes)
 
 All tensors are symmetric per-tensor int8 with zero-point 0; biases are int32
 at the accumulator scale.
@@ -72,7 +69,7 @@ at the accumulator scale.
 4. `h[o] = tanh_lut[pre as unsigned byte]` (int8, scale 1/127). With `--activation relu`
    there is no LUT and `h = clamp(step 3, 0, 127)`.
 5. `logits[t] = fc2_bias[t] + sum_j fc2_weight[t*128 + j] * h[j]` (fits `ACC2_BITS`);
-   the next character is `argmax(logits)`, or sample from `softmax(logits * logit_scale)`.
+   the next character is `argmax(logits)`, or sample from `softmax(logits * logit_scale)`. -->
 
 ### `model-weights/`
 

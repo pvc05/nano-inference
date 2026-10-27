@@ -1,0 +1,217 @@
+{
+  "format_version": 1,
+  "config": {
+    "vocab_size": 64,
+    "context": 4,
+    "emb_dim": 16,
+    "hidden": 128,
+    "activation": "tanh"
+  },
+  "vocab": "\n abcdefghijklmnopqrstuvwxyz0123456789!\"#$%&'()*+,-./:;<=>?@[\\]_",
+  "quant": {
+    "scheme": "symmetric per-tensor int8, zero-point 0; int32 biases at accumulator scale",
+    "req1_mult": 44780,
+    "req1_shift": 18,
+    "scales": {
+      "emb": 0.06698887050151825,
+      "fc1_weight": 0.06253031641244888,
+      "act": 0.02452169544994831,
+      "hidden": 0.007874015718698502,
+      "fc2_weight": 0.014065349474549294,
+      "logits": 0.00011075078285158885,
+      "mult_bits": 16
+    },
+    "accumulator_bits": {
+      "acc1": 19,
+      "acc2": 21,
+      "req1_product": 34
+    }
+  },
+  "files": {
+    "emb": {
+      "file": "embedding.hex",
+      "bits": 8,
+      "signed": true,
+      "shape": [
+        64,
+        16
+      ],
+      "layout": "addr = token * EMB_DIM + d"
+    },
+    "w1": {
+      "file": "fc1_weight.hex",
+      "bits": 8,
+      "signed": true,
+      "shape": [
+        128,
+        64
+      ],
+      "layout": "addr = out * IN_DIM + (position * EMB_DIM + d); position 0 = oldest char"
+    },
+    "b1": {
+      "file": "fc1_bias.hex",
+      "bits": 32,
+      "signed": true,
+      "shape": [
+        128
+      ],
+      "layout": "addr = out"
+    },
+    "w2": {
+      "file": "fc2_weight.hex",
+      "bits": 8,
+      "signed": true,
+      "shape": [
+        64,
+        128
+      ],
+      "layout": "addr = out_token * HIDDEN + j"
+    },
+    "b2": {
+      "file": "fc2_bias.hex",
+      "bits": 32,
+      "signed": true,
+      "shape": [
+        64
+      ],
+      "layout": "addr = out_token"
+    },
+    "act_lut": {
+      "file": "tanh_lut.hex",
+      "bits": 8,
+      "signed": true,
+      "shape": [
+        256
+      ],
+      "layout": "addr = pre-activation int8 as unsigned byte (two's complement)"
+    },
+    "token_to_ascii": {
+      "file": "token_to_ascii.hex",
+      "bits": 8,
+      "signed": false,
+      "shape": [
+        64
+      ],
+      "layout": "addr = token"
+    },
+    "ascii_to_token": {
+      "file": "ascii_to_token.hex",
+      "bits": 8,
+      "signed": false,
+      "shape": [
+        128
+      ],
+      "layout": "addr = 7-bit ASCII code; unknown -> space"
+    },
+    "test_context": {
+      "file": "test_context.hex",
+      "bits": 8,
+      "signed": false,
+      "shape": [
+        32,
+        4
+      ],
+      "layout": "addr = vector * CONTEXT + position (token ids)"
+    },
+    "test_hidden": {
+      "file": "test_hidden.hex",
+      "bits": 8,
+      "signed": true,
+      "shape": [
+        32,
+        128
+      ],
+      "layout": "addr = vector * HIDDEN + j"
+    },
+    "test_logits": {
+      "file": "test_logits.hex",
+      "bits": 32,
+      "signed": true,
+      "shape": [
+        32,
+        64
+      ],
+      "layout": "addr = vector * VOCAB_SIZE + token (fc2 accumulators)"
+    },
+    "test_argmax": {
+      "file": "test_argmax.hex",
+      "bits": 8,
+      "signed": false,
+      "shape": [
+        32
+      ],
+      "layout": "addr = vector (predicted next token)"
+    }
+  },
+  "num_weights": 17600,
+  "metrics": {
+    "float32": {
+      "val": {
+        "loss": 1.5307769215994473,
+        "bpc": 2.208444273498796,
+        "acc": 0.5376629990643469
+      },
+      "test": {
+        "loss": 1.5100039530113119,
+        "bpc": 2.178475214732151,
+        "acc": 0.5426891341620231
+      }
+    },
+    "fake-quant": {
+      "val": {
+        "loss": 1.5288979798525728,
+        "bpc": 2.2057335335584614,
+        "acc": 0.5387851906245188
+      },
+      "test": {
+        "loss": 1.5067858656523723,
+        "bpc": 2.1738324960582616,
+        "acc": 0.543723880197171
+      }
+    },
+    "int8": {
+      "val": {
+        "loss": 1.528897976255174,
+        "bpc": 2.2057335283685116,
+        "acc": 0.5387851906245188
+      },
+      "test": {
+        "loss": 1.5067858594771044,
+        "bpc": 2.173832487149233,
+        "acc": 0.543723880197171
+      }
+    }
+  },
+  "hparams": {
+    "model": {
+      "vocab_size": 64,
+      "context": 4,
+      "emb_dim": 16,
+      "hidden": 128,
+      "activation": "tanh"
+    },
+    "train": {
+      "epochs": 15.0,
+      "qat_epochs": 5.0,
+      "batch_size": 256,
+      "lr": 0.008864816762141582,
+      "qat_lr": 0.0021138485482024142,
+      "min_lr_frac": 0.10684744342433365,
+      "warmup_steps": 1000,
+      "weight_decay": 0.0008230145198801904,
+      "grad_clip": 1.0,
+      "evals_per_phase": 10,
+      "calib_examples": 65536,
+      "seed": 1337
+    },
+    "tuned": {
+      "lr": 0.008864816762141582,
+      "activation": "tanh",
+      "batch_size": 256,
+      "weight_decay": 0.0008230145198801904,
+      "warmup_steps": 1000,
+      "min_lr_frac": 0.10684744342433365,
+      "qat_lr": 0.0021138485482024142
+    }
+  }
+}

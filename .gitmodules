@@ -1,0 +1,3 @@
+[submodule "harry-potter-data"]
+	path = harry-potter-data
+	url = https://github.com/gastonstat/harry-potter-data
